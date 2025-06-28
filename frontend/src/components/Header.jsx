@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Heart, Home, Users, MessageCircle, Bell, DollarSign, Star, Moon } from 'lucide-react';
 import { motion, useAnimation } from 'framer-motion';
+import { Link } from 'react-router-dom';
 
 // Floating hearts animation component
 const FloatingHearts = () => {
@@ -166,9 +167,11 @@ export default function Header() {
             
             {/* Sign In Button */}
             <div className="hidden md:flex items-center">
-              <button className="glass-effect text-white px-6 py-2 rounded-full hover:bg-white/20 transition-all">
-                Sign In
-              </button>
+              <Link to="/sign-in">
+                <button className="glass-effect text-white px-6 py-2 rounded-full hover:bg-white/20 transition-all">
+                  Sign In
+                </button>
+              </Link>
             </div>
             
             {/* Mobile Menu Button */}
