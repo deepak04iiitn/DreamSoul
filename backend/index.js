@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import authRoutes from './routes/auth.route.js';
+import profileRoutes from './routes/profile.route.js';
 import path from 'path';
 
 dotenv.config();
@@ -30,6 +31,7 @@ mongoose.connect(MONGODB_URI)
 
 
 app.use('/backend/auth', authRoutes);
+app.use('/backend/profile', profileRoutes);
 
 
 app.use(express.static(path.join(__dirname, 'frontend/dist')));

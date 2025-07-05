@@ -41,6 +41,68 @@ const baseUserSchema = new mongoose.Schema({
         type: Date,
         default: Date.now
     },
+    // Profile completion fields
+    isProfileComplete: {
+        type: Boolean,
+        default: false,
+    },
+    age: {
+        type: Number,
+        min: 18,
+        max: 100,
+    },
+    city: {
+        type: String,
+    },
+    state: {
+        type: String,
+    },
+    country: {
+        type: String,
+    },
+    interestedIn: {
+        type: String,
+        enum: ["male", "female", "both", "others"],
+    },
+    bio: {
+        type: String,
+        maxLength: 500,
+    },
+    // Intro content
+    introVoice: {
+        type: String, // URL to voice file
+    },
+    introHobby: {
+        type: String,
+    },
+    introThought: {
+        type: String,
+    },
+    // All content arrays
+    allVoices: [{
+        title: String,
+        url: String,
+        duration: String,
+        plays: { type: Number, default: 0 },
+        createdAt: { type: Date, default: Date.now }
+    }],
+    allHobbies: [{
+        name: String,
+        description: String,
+        createdAt: { type: Date, default: Date.now }
+    }],
+    allThoughts: [{
+        content: String,
+        likes: { type: Number, default: 0 },
+        comments: { type: Number, default: 0 },
+        createdAt: { type: Date, default: Date.now }
+    }],
+    allPhotos: [{
+        url: String,
+        caption: String,
+        likes: { type: Number, default: 0 },
+        createdAt: { type: Date, default: Date.now }
+    }]
 }, { timestamps: true });
 
 // Create separate models for each gender

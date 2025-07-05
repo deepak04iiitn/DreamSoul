@@ -64,6 +64,7 @@ export const signin = async (req, res, next) => {
         const token = jwt.sign(
             { 
                 id: validUser._id,
+                email: validUser.email,
                 isUserAdmin: validUser.isUserAdmin,
                 gender: validUser.gender
             },
@@ -94,6 +95,7 @@ export const google = async(req, res, next) => {
             const token = jwt.sign(
                 {
                     id: user._id,
+                    email: user.email,
                     isUserAdmin: user.isUserAdmin,
                     gender: user.gender
                 },
@@ -131,6 +133,7 @@ export const google = async(req, res, next) => {
             const token = jwt.sign(
                 {
                     id: newUser._id,
+                    email: newUser.email,
                     isUserAdmin: newUser.isUserAdmin,
                     gender: newUser.gender
                 },
