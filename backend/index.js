@@ -32,16 +32,11 @@ mongoose.connect(MONGODB_URI)
 app.use('/backend/auth', authRoutes);
 
 
-// Serve frontend files
-app.use(express.static(path.join(__dirname, '/frontend/dist')));
+app.use(express.static(path.join(__dirname, 'frontend/dist')));
 
-// Handle React Router - serve index.html for all non-API routes
-app.get('*', (req, res) => {
-    // Don't serve index.html for API routes
-    if (req.path.startsWith('/backend/')) {
-        return res.status(404).json({ message: 'API route not found' });
-    }
-    res.sendFile(path.join(__dirname, 'frontend', 'dist', 'index.html'));
+// Handle frontend routes - only catch routes that don't start with /backend
+app.get(/^(?!\/backend).*/, (req, res) => {
+  res.sendFile(path.join(__dirname, 'frontend/dist/index.html'));
 });
 
 app.listen(PORT, () => {
