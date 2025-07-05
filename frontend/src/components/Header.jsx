@@ -61,7 +61,7 @@ export default function Header() {
   const handleLogout = () => {
     dispatch(signoutSuccess());
     setDropdownOpen(false);
-    navigate('/');
+    navigate('/sign-up');
   };
 
   const handleProfile = () => {
@@ -175,7 +175,7 @@ export default function Header() {
             
             {/* Navigation */}
             <nav className="hidden md:flex items-center space-x-8">
-              <a href="#" className="text-white hover:text-pink-300 transition-colors flex items-center space-x-2 cursor-pointer">
+              <a href="/" className="text-white hover:text-pink-300 transition-colors flex items-center space-x-2 cursor-pointer">
                 <Home size={16} />
                 <span>Home</span>
               </a>

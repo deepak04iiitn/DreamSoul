@@ -13,7 +13,7 @@ export default function SignUp() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.username || !formData.email || !formData.password) {
+    if (!formData.fullName || !formData.username || !formData.email || !formData.password || !formData.gender) {
       return setErrorMessage('Please fill out all details!');
     }
 
@@ -176,6 +176,23 @@ export default function SignUp() {
                   {/* Sign Up Form */}
                   <form className="space-y-6" onSubmit={handleSubmit}>
                     <div className="space-y-5">
+                      {/* Full Name Field */}
+                      <div className="group">
+                        <label className="block text-sm font-medium text-white/70 mb-3 tracking-wide">
+                          FULL NAME
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="text"
+                            id="fullName"
+                            onChange={handleChange}
+                            className="w-full max-w-md mx-auto px-5 py-4 bg-white/[0.03] backdrop-blur-sm border border-white/20 rounded-2xl text-white placeholder-white/40 focus:ring-2 focus:ring-purple-400/50 focus:border-purple-400/50 transition-all duration-300 outline-none hover:bg-white/[0.06] text-lg"
+                            placeholder="your full name"
+                          />
+                          <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-purple-500/10 to-pink-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
+                        </div>
+                      </div>
+
                       {/* Username Field */}
                       <div className="group">
                         <label className="block text-sm font-medium text-white/70 mb-3 tracking-wide">
@@ -224,6 +241,32 @@ export default function SignUp() {
                             placeholder="••••••••••••"
                           />
                           <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-purple-500/10 to-pink-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
+                        </div>
+                      </div>
+
+                      {/* Gender Field */}
+                      <div className="group">
+                        <label className="block text-sm font-medium text-white/70 mb-3 tracking-wide">
+                          GENDER
+                        </label>
+                        <div className="relative">
+                          <select
+                            id="gender"
+                            onChange={handleChange}
+                            className="w-full max-w-md mx-auto px-5 py-4 bg-white/[0.03] backdrop-blur-sm border border-white/20 rounded-2xl text-white focus:ring-2 focus:ring-purple-400/50 focus:border-purple-400/50 transition-all duration-300 outline-none hover:bg-white/[0.06] text-lg appearance-none cursor-pointer"
+                            defaultValue=""
+                          >
+                            <option value="" disabled className="bg-slate-800 text-white">Select your gender</option>
+                            <option value="male" className="bg-slate-800 text-white">Male</option>
+                            <option value="female" className="bg-slate-800 text-white">Female</option>
+                            <option value="other" className="bg-slate-800 text-white">Other</option>
+                          </select>
+                          <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-purple-500/10 to-pink-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
+                          <div className="absolute right-4 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                            <svg className="w-5 h-5 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                            </svg>
+                          </div>
                         </div>
                       </div>
                     </div>
