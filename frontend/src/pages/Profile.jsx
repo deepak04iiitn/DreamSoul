@@ -5,6 +5,7 @@ import ProfileCompletion from '../components/ProfileCompletion';
 import AddContentModal from '../components/AddContentModal';
 import DeleteAccountModal from '../components/DeleteAccountModal';
 import MediaUploader from '../components/MediaUploader';
+import Cropper from 'react-easy-crop';
 
 export default function Profile() {
   const { currentUser } = useSelector((state) => state.user);
@@ -20,6 +21,12 @@ export default function Profile() {
   const [profilePicUploading, setProfilePicUploading] = useState(false);
   const [profilePicError, setProfilePicError] = useState('');
   const fileInputRef = useRef(null);
+  const [showCropModal, setShowCropModal] = useState(false);
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [crop, setCrop] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
 
   useEffect(() => {
     if (currentUser && !currentUser.isProfileComplete) {
@@ -71,30 +78,101 @@ export default function Profile() {
     if (fileInputRef.current) fileInputRef.current.click();
   };
 
+  // Helper to get cropped image blob
+  async function getCroppedImg(imageSrc, cropPixels) {
+    const image = await createImage(imageSrc);
+    const canvas = document.createElement('canvas');
+    canvas.width = cropPixels.width;
+    canvas.height = cropPixels.height;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(
+      image,
+      cropPixels.x,
+      cropPixels.y,
+      cropPixels.width,
+      cropPixels.height,
+      0,
+      0,
+      cropPixels.width,
+      cropPixels.height
+    );
+    return new Promise((resolve) => {
+      canvas.toBlob((blob) => {
+        resolve(blob);
+      }, 'image/jpeg');
+    });
+  }
+
+  function createImage(url) {
+    return new Promise((resolve, reject) => {
+      const img = new window.Image();
+      img.addEventListener('load', () => resolve(img));
+      img.addEventListener('error', (error) => reject(error));
+      img.setAttribute('crossOrigin', 'anonymous');
+      img.src = url;
+    });
+  }
+
   const handleFileInputChange = (e) => {
     const file = e.target.files[0];
     if (file) {
-      setProfilePicUploading(true);
       setProfilePicError('');
+      const reader = new FileReader();
+      reader.onload = () => {
+        setSelectedImage(reader.result);
+        setShowCropModal(true);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const onCropComplete = (croppedArea, croppedAreaPixels) => {
+    setCroppedAreaPixels(croppedAreaPixels);
+  };
+
+  const handleCropSave = async () => {
+    setProfilePicUploading(true);
+    setShowCropModal(false);
+    setUploadProgress(0);
+    try {
+      const croppedBlob = await getCroppedImg(selectedImage, croppedAreaPixels);
       const form = new FormData();
-      form.append('photo', file);
-      fetch('/backend/profile/upload/profile-picture', {
-        method: 'POST',
-        credentials: 'include',
-        body: form
-      })
-        .then(async (res) => {
-          const data = await res.json();
-          if (!res.ok) throw new Error(data.message || 'Upload failed');
-          setProfilePic(data.url);
-          dispatch(updateUser({ ...currentUser, profilePicture: data.url }));
-        })
-        .catch((err) => {
-          setProfilePicError(err.message);
-        })
-        .finally(() => {
-          setProfilePicUploading(false);
-        });
+      form.append('photo', croppedBlob, 'profile.jpg');
+
+      // Use XMLHttpRequest for progress
+      await new Promise((resolve, reject) => {
+        const xhr = new window.XMLHttpRequest();
+        xhr.open('POST', '/backend/profile/upload/profile-picture');
+        xhr.withCredentials = true;
+        xhr.upload.onprogress = (event) => {
+          if (event.lengthComputable) {
+            setUploadProgress(Math.round((event.loaded / event.total) * 100));
+          }
+        };
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            const data = JSON.parse(xhr.responseText);
+            setProfilePic(data.url);
+            dispatch(updateUser({ ...currentUser, profilePicture: data.url }));
+            resolve();
+          } else {
+            const data = JSON.parse(xhr.responseText);
+            setProfilePicError(data.message || 'Upload failed');
+            reject(new Error(data.message || 'Upload failed'));
+          }
+        };
+        xhr.onerror = () => {
+          setProfilePicError('Upload failed');
+          reject(new Error('Upload failed'));
+        };
+        xhr.send(form);
+      });
+    } catch (err) {
+      setProfilePicError(err.message);
+    } finally {
+      setProfilePicUploading(false);
+      setSelectedImage(null);
+      setUploadProgress(0);
     }
   };
 
@@ -420,13 +498,43 @@ export default function Profile() {
                   onChange={handleFileInputChange}
                 />
                 {profilePicUploading && (
-                  <div className="mt-2 text-pink-400 flex items-center gap-2">
-                    <div className="w-4 h-4 border-2 border-pink-400/20 border-t-pink-400 rounded-full animate-spin"></div>
-                    <span className="text-sm">Uploading...</span>
+                  <div className="absolute inset-0 flex items-center justify-center z-10">
+                    <svg className="w-28 h-28" viewBox="0 0 100 100">
+                      <circle
+                        cx="50"
+                        cy="50"
+                        r="44"
+                        fill="none"
+                        stroke="#e5e7eb"
+                        strokeWidth="8"
+                      />
+                      <circle
+                        cx="50"
+                        cy="50"
+                        r="44"
+                        fill="none"
+                        stroke="#ec4899"
+                        strokeWidth="8"
+                        strokeDasharray={2 * Math.PI * 44}
+                        strokeDashoffset={2 * Math.PI * 44 * (1 - uploadProgress / 100)}
+                        strokeLinecap="round"
+                        style={{ transition: 'stroke-dashoffset 0.3s' }}
+                      />
+                      <text
+                        x="50"
+                        y="54"
+                        textAnchor="middle"
+                        fontSize="22"
+                        fill="#ec4899"
+                        fontWeight="bold"
+                      >
+                        {uploadProgress}%
+                      </text>
+                    </svg>
                   </div>
                 )}
                 {profilePicError && (
-                  <div className="mt-2 text-red-400 text-sm">{profilePicError}</div>
+                  <div className="mt-2 text-red-400 text-sm absolute left-1/2 -translate-x-1/2 top-full whitespace-nowrap">{profilePicError}</div>
                 )}
               </div>
 
@@ -484,7 +592,6 @@ export default function Profile() {
                   {currentUser.bio && (
                     <p className="text-white/80 text-sm mt-1">{currentUser.bio}</p>
                   )}
-                  <p className="text-blue-400 text-sm mt-1">{currentUser.email}</p>
                 </div>
               </div>
             </div>
@@ -570,6 +677,47 @@ export default function Profile() {
           isOpen={showDeleteModal}
           onClose={() => setShowDeleteModal(false)}
         />
+
+        {/* Cropping Modal */}
+        {showCropModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-70">
+            <div className="bg-white rounded-2xl p-6 w-full max-w-md relative">
+              <h2 className="text-lg font-bold mb-4 text-center">Crop and Adjust Profile Picture</h2>
+              <div className="relative w-full h-64 bg-gray-200">
+                <Cropper
+                  image={selectedImage}
+                  crop={crop}
+                  zoom={zoom}
+                  aspect={1}
+                  onCropChange={setCrop}
+                  onZoomChange={setZoom}
+                  onCropComplete={onCropComplete}
+                />
+              </div>
+              <div className="flex flex-col gap-4 mt-4">
+                <input
+                  type="range"
+                  min={1}
+                  max={3}
+                  step={0.01}
+                  value={zoom}
+                  onChange={(e) => setZoom(Number(e.target.value))}
+                  className="w-full"
+                />
+                <div className="flex justify-end gap-2">
+                  <button
+                    onClick={() => { setShowCropModal(false); setSelectedImage(null); }}
+                    className="px-4 py-2 rounded bg-gray-300 text-gray-800 hover:bg-gray-400"
+                  >Cancel</button>
+                  <button
+                    onClick={handleCropSave}
+                    className="px-4 py-2 rounded bg-pink-500 text-white hover:bg-pink-600"
+                  >Save</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
