@@ -10,12 +10,21 @@ import {
     deleteContent,
     uploadPhoto,
     uploadVoice,
-    uploadHobbyMedia
+    uploadHobbyMedia,
+    getUserProfileByUsername,
+    searchUsernames,
+    uploadProfilePicture
 } from '../controllers/profile.controller.js';
 
 const router = express.Router();
 
-// All routes require authentication
+// Public: Get user profile by username
+router.get('/public/:username', getUserProfileByUsername);
+
+// Public: Search users by username (autocomplete)
+router.get('/search', searchUsernames);
+
+// All routes below require authentication
 router.use(verifyToken);
 
 // Get user profile
@@ -28,6 +37,7 @@ router.post('/complete', completeProfile);
 router.post('/upload/photo', ...uploadPhoto);
 router.post('/upload/voice', ...uploadVoice);
 router.post('/upload/hobby', ...uploadHobbyMedia);
+router.post('/upload/profile-picture', ...uploadProfilePicture);
 
 // Add content
 router.post('/voices', addVoice);

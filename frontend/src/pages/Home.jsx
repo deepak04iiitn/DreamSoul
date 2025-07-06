@@ -16,10 +16,15 @@ import {
   PenTool,
   Lightbulb
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 export default function DreamSoulLanding() {
   const [currentTestimonial, setCurrentTestimonial] = useState(0);
   const [activeFeature, setActiveFeature] = useState(0);
+  const [search, setSearch] = useState('');
+  const [suggestions, setSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const navigate = useNavigate();
 
   const testimonials = [
     {
@@ -91,6 +96,23 @@ export default function DreamSoulLanding() {
     return () => clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    if (search.length > 0) {
+      fetch(`/backend/profile/search?q=${encodeURIComponent(search)}`)
+        .then(res => res.json())
+        .then(data => setSuggestions(data.users || []));
+    } else {
+      setSuggestions([]);
+    }
+  }, [search]);
+
+  const handleSelect = (username) => {
+    setSearch('');
+    setSuggestions([]);
+    setShowSuggestions(false);
+    navigate(`/profile/${username}`);
+  };
+
   // Fix for dynamic icon rendering
   const ActiveIcon = threePillars[activeFeature].icon;
 
@@ -122,6 +144,37 @@ export default function DreamSoulLanding() {
             alt="DreamSoul Logo"
             className="w-60 h-40 rounded-full shadow-2xl"
           />
+        </div>
+        {/* Profile Search Bar */}
+        <div className="flex justify-center mb-6 z-30 relative">
+          <div className="w-full max-w-md">
+            <input
+              type="text"
+              value={search}
+              onChange={e => { setSearch(e.target.value); setShowSuggestions(true); }}
+              onFocus={() => setShowSuggestions(true)}
+              onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+              placeholder="Search profiles by username..."
+              className="w-full px-5 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/50 focus:outline-none focus:border-pink-400 focus:ring-2 focus:ring-pink-400/20 transition-all duration-200 shadow-lg"
+            />
+            {showSuggestions && suggestions.length > 0 && (
+              <div className="absolute left-0 right-0 mt-2 bg-white/90 rounded-xl shadow-xl z-50 max-h-72 overflow-y-auto">
+                {suggestions.map(user => (
+                  <div
+                    key={user.username}
+                    onMouseDown={() => handleSelect(user.username)}
+                    className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-pink-100/80 transition-colors"
+                  >
+                    <img src={user.profilePicture} alt={user.username} className="w-8 h-8 rounded-full object-cover border border-pink-300" />
+                    <div>
+                      <div className="font-semibold text-pink-600">{user.username}</div>
+                      <div className="text-xs text-gray-600">{user.fullName}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
         {/* Animated Background */}
         <div className="fixed inset-0 overflow-hidden pointer-events-none">

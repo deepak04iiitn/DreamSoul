@@ -89,9 +89,12 @@ const baseUserSchema = new mongoose.Schema({
     allHobbies: [{
         name: String,
         description: String,
+        url: String,
+        mediaType: String,
         createdAt: { type: Date, default: Date.now }
     }],
     allThoughts: [{
+        title: { type: String, required: true },
         content: String,
         likes: { type: Number, default: 0 },
         comments: { type: Number, default: 0 },
@@ -139,4 +142,27 @@ export const findUserByEmail = async (email) => {
     if (user) return { user, model: OtherUser };
     
     return { user: null, model: null };
+};
+
+// Export a function to search across all collections by username
+export const findUserByUsername = async (username) => {
+    let user = await MaleUser.findOne({ username });
+    if (user) return { user, model: MaleUser };
+    user = await FemaleUser.findOne({ username });
+    if (user) return { user, model: FemaleUser };
+    user = await OtherUser.findOne({ username });
+    if (user) return { user, model: OtherUser };
+    return { user: null, model: null };
+};
+
+// Export a function to search users by username prefix (autocomplete)
+export const searchUsersByUsername = async (query, limit = 10) => {
+    const regex = new RegExp('^' + query, 'i');
+    const users = await Promise.all([
+        MaleUser.find({ username: regex }).limit(limit),
+        FemaleUser.find({ username: regex }).limit(limit),
+        OtherUser.find({ username: regex }).limit(limit)
+    ]);
+    // Flatten and sort by username
+    return users.flat().sort((a, b) => a.username.localeCompare(b.username)).slice(0, limit);
 };

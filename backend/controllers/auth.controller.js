@@ -152,3 +152,52 @@ export const google = async(req, res, next) => {
         next(error);
     }
 }
+
+export const deleteAccount = async (req, res, next) => {
+    try {
+        const { email } = req.user;
+        const { password } = req.body;
+        const { user, model } = await findUserByEmail(email);
+        
+        if (!user) {
+            return next(errorHandler(404, "User not found"));
+        }
+
+        if (!password) {
+            return next(errorHandler(400, "Password is required to delete account"));
+        }
+
+        // Verify password before deletion
+        const validPassword = bcryptjs.compareSync(password, user.password);
+        if (!validPassword) {
+            return next(errorHandler(400, "Invalid password"));
+        }
+
+        // Delete user from database
+        await model.findByIdAndDelete(user._id);
+
+        // Clear the access token cookie
+        res.status(200)
+           .clearCookie('access_token')
+           .json({
+               success: true,
+               message: "Account deleted successfully"
+           });
+
+    } catch (error) {
+        next(error);
+    }
+}
+
+export const signout = async (req, res, next) => {
+    try {
+        res.status(200)
+           .clearCookie('access_token')
+           .json({
+               success: true,
+               message: "User has been logged out"
+           });
+    } catch (error) {
+        next(error);
+    }
+}

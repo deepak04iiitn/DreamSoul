@@ -58,10 +58,22 @@ export default function Header() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
-  const handleLogout = () => {
-    dispatch(signoutSuccess());
-    setDropdownOpen(false);
-    navigate('/sign-up');
+  const handleLogout = async () => {
+    try {
+      await fetch('/backend/auth/signout', {
+        method: 'GET',
+        credentials: 'include'
+      });
+      dispatch(signoutSuccess());
+      setDropdownOpen(false);
+      navigate('/sign-up');
+    } catch (error) {
+      console.error('Logout error:', error);
+      // Still clear the state even if backend call fails
+      dispatch(signoutSuccess());
+      setDropdownOpen(false);
+      navigate('/sign-up');
+    }
   };
 
   const handleProfile = () => {

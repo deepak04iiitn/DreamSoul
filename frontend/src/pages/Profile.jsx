@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { updateUser } from '../redux/user/userSlice';
 import ProfileCompletion from '../components/ProfileCompletion';
 import AddContentModal from '../components/AddContentModal';
+import DeleteAccountModal from '../components/DeleteAccountModal';
+import MediaUploader from '../components/MediaUploader';
 
 export default function Profile() {
   const { currentUser } = useSelector((state) => state.user);
@@ -11,13 +13,19 @@ export default function Profile() {
   const [showProfileCompletion, setShowProfileCompletion] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [modalContentType, setModalContentType] = useState('');
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [profilePic, setProfilePic] = useState(currentUser?.profilePicture || '');
+  const [profilePicUploading, setProfilePicUploading] = useState(false);
+  const [profilePicError, setProfilePicError] = useState('');
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     if (currentUser && !currentUser.isProfileComplete) {
       setShowProfileCompletion(true);
     }
+    setProfilePic(currentUser?.profilePicture || '');
   }, [currentUser]);
 
   const fetchUserProfile = async () => {
@@ -59,6 +67,37 @@ export default function Profile() {
     setShowAddModal(true);
   };
 
+  const handleAvatarClick = () => {
+    if (fileInputRef.current) fileInputRef.current.click();
+  };
+
+  const handleFileInputChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setProfilePicUploading(true);
+      setProfilePicError('');
+      const form = new FormData();
+      form.append('photo', file);
+      fetch('/backend/profile/upload/profile-picture', {
+        method: 'POST',
+        credentials: 'include',
+        body: form
+      })
+        .then(async (res) => {
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.message || 'Upload failed');
+          setProfilePic(data.url);
+          dispatch(updateUser({ ...currentUser, profilePicture: data.url }));
+        })
+        .catch((err) => {
+          setProfilePicError(err.message);
+        })
+        .finally(() => {
+          setProfilePicUploading(false);
+        });
+    }
+  };
+
   if (!currentUser) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
@@ -76,7 +115,9 @@ export default function Profile() {
         onComplete={() => {
           setShowProfileCompletion(false);
           fetchUserProfile();
-        }} 
+        }}
+        currentUser={currentUser}
+        isEdit={showProfileCompletion}
       />
     );
   }
@@ -141,12 +182,20 @@ export default function Profile() {
     <div>
       <div className="flex justify-between items-center mb-6">
         <h3 className="text-xl font-semibold text-white">Voices</h3>
-        <button
-          onClick={() => openAddModal('voice')}
-          className="bg-gradient-to-r from-pink-400 to-purple-500 text-white px-4 py-2 rounded-lg hover:from-pink-500 hover:to-purple-600 transition-all duration-200 cursor-pointer"
-        >
-          Add Voice
-        </button>
+        <div className="flex items-center space-x-4">
+          <span className="text-white/60 text-sm">{profileStats.voices}/5 voices</span>
+          <button
+            onClick={() => openAddModal('voice')}
+            disabled={profileStats.voices >= 5}
+            className={`px-4 py-2 rounded-lg transition-all duration-200 cursor-pointer ${
+              profileStats.voices >= 5
+                ? 'bg-gray-500 text-gray-300 cursor-not-allowed'
+                : 'bg-gradient-to-r from-pink-400 to-purple-500 text-white hover:from-pink-500 hover:to-purple-600'
+            }`}
+          >
+            Add Voice
+          </button>
+        </div>
       </div>
       
       {currentUser.allVoices && currentUser.allVoices.length > 0 ? (
@@ -206,7 +255,8 @@ export default function Profile() {
         <div className="space-y-4">
           {currentUser.allThoughts.map((thought) => (
             <div key={thought._id} className="bg-white/5 rounded-lg p-4">
-              <p className="text-white mb-3 leading-relaxed">{thought.content}</p>
+              <h4 className="text-lg font-bold text-pink-400 mb-1">{thought.title}</h4>
+              <p className="text-white mb-3 leading-relaxed break-all max-h-32 overflow-hidden text-ellipsis whitespace-pre-line">{thought.content}</p>
               <div className="flex items-center justify-between text-sm text-white/60">
                 <div className="flex items-center space-x-4">
                   <button className="flex items-center space-x-1 hover:text-pink-400 transition-colors cursor-pointer">
@@ -253,17 +303,29 @@ export default function Profile() {
     </div>
   );
 
-  const renderHobbiesTab = () => (
-    <div>
-      <div className="flex justify-between items-center mb-6">
-        <h3 className="text-xl font-semibold text-white">Hobbies</h3>
-        <button
-          onClick={() => openAddModal('hobby')}
-          className="bg-gradient-to-r from-pink-400 to-purple-500 text-white px-4 py-2 rounded-lg hover:from-pink-500 hover:to-purple-600 transition-all duration-200 cursor-pointer"
-        >
-          Add Hobby
-        </button>
-      </div>
+  const renderHobbiesTab = () => {
+    const videoHobbies = currentUser.allHobbies?.filter(hobby => hobby.mediaType === 'video') || [];
+    const videoCount = videoHobbies.length;
+    
+    return (
+      <div>
+        <div className="flex justify-between items-center mb-6">
+          <h3 className="text-xl font-semibold text-white">Hobbies</h3>
+          <div className="flex items-center space-x-4">
+            <span className="text-white/60 text-sm">{videoCount}/5 videos</span>
+            <button
+              onClick={() => openAddModal('hobby')}
+              disabled={videoCount >= 5}
+              className={`px-4 py-2 rounded-lg transition-all duration-200 cursor-pointer ${
+                videoCount >= 5
+                  ? 'bg-gray-500 text-gray-300 cursor-not-allowed'
+                  : 'bg-gradient-to-r from-pink-400 to-purple-500 text-white hover:from-pink-500 hover:to-purple-600'
+              }`}
+            >
+              Add Hobby
+            </button>
+          </div>
+        </div>
       
       {currentUser.allHobbies && currentUser.allHobbies.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -273,8 +335,29 @@ export default function Profile() {
                 <div className="flex-1">
                   <h3 className="text-white font-semibold text-lg mb-2">{hobby.name}</h3>
                   <p className="text-white/80 text-sm leading-relaxed">{hobby.description}</p>
+                  
+                  {/* Display media if available */}
+                  {hobby.url && (
+                    <div className="mt-3">
+                      {hobby.mediaType === 'video' ? (
+                        <video 
+                          src={hobby.url} 
+                          controls 
+                          className="w-full h-32 object-cover rounded-lg"
+                        />
+                      ) : (
+                        <img 
+                          src={hobby.url} 
+                          alt={hobby.name}
+                          className="w-full h-32 object-cover rounded-lg"
+                        />
+                      )}
+                    </div>
+                  )}
+                  
                   <p className="text-white/60 text-xs mt-2">
                     Added {new Date(hobby.createdAt).toLocaleDateString()}
+                    {hobby.mediaType && ` • ${hobby.mediaType}`}
                   </p>
                 </div>
                 <button
@@ -301,154 +384,193 @@ export default function Profile() {
         </div>
       )}
     </div>
-  );
+    );
+  };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
-      {/* Profile Header */}
-      <div className="max-w-4xl mx-auto pt-8 px-4">
-        <div className="bg-white/10 rounded-2xl p-6 mb-6">
-          <div className="flex items-start space-x-6">
-            {/* Profile Avatar */}
-            <div className="relative">
-              <div className="w-24 h-24 bg-gradient-to-br from-pink-400 to-purple-500 rounded-full flex items-center justify-center text-white text-2xl font-bold">
-                {(currentUser.fullName || currentUser.username || 'U').charAt(0).toUpperCase()}
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-4">
+      <div className="max-w-4xl mx-auto">
+        {/* Profile Header */}
+        <div className="max-w-4xl mx-auto pt-8 px-4">
+          <div className="bg-white/10 rounded-2xl p-6 mb-6">
+            <div className="flex items-start space-x-6">
+              {/* Profile Avatar */}
+              <div className="relative group cursor-pointer" onClick={handleAvatarClick} tabIndex={0} role="button">
+                <img
+                  src={profilePic || 'https://www.pngall.com/wp-content/uploads/5/Profile.png'}
+                  alt="Profile"
+                  className="w-24 h-24 rounded-full object-cover border-4 border-gradient-to-r from-purple-400 to-pink-400 shadow-2xl group-hover:scale-105 transition-transform duration-300"
+                />
+                <button
+                  type="button"
+                  className="absolute -bottom-1 -right-1 bg-blue-500 rounded-full p-1 cursor-pointer border-2 border-white shadow"
+                  onClick={handleAvatarClick}
+                  tabIndex={-1}
+                  aria-label="Change profile picture"
+                >
+                  <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                  </svg>
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleFileInputChange}
+                />
+                {profilePicUploading && (
+                  <div className="mt-2 text-pink-400 flex items-center gap-2">
+                    <div className="w-4 h-4 border-2 border-pink-400/20 border-t-pink-400 rounded-full animate-spin"></div>
+                    <span className="text-sm">Uploading...</span>
+                  </div>
+                )}
+                {profilePicError && (
+                  <div className="mt-2 text-red-400 text-sm">{profilePicError}</div>
+                )}
               </div>
-              <button className="absolute -bottom-1 -right-1 bg-blue-500 rounded-full p-1 cursor-pointer">
-                <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+
+              {/* Profile Info */}
+              <div className="flex-1">
+                <div className="flex items-center space-x-4 mb-4">
+                  <h1 className="text-2xl font-bold text-white">{currentUser.username}</h1>
+                  <button 
+                    onClick={() => setShowProfileCompletion(true)}
+                    className="bg-white/20 hover:bg-white/30 text-white px-4 py-1 rounded-lg text-sm font-medium transition-colors cursor-pointer"
+                  >
+                    Edit Profile
+                  </button>
+                  <button 
+                    onClick={() => setShowDeleteModal(true)}
+                    className="bg-red-500/20 hover:bg-red-500/30 text-red-400 px-4 py-1 rounded-lg text-sm font-medium transition-colors cursor-pointer"
+                  >
+                    Delete Account
+                  </button>
+                  <button className="text-white/80 hover:text-white cursor-pointer">
+                    <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+                    </svg>
+                  </button>
+                </div>
+
+                {/* Stats */}
+                <div className="flex space-x-8 mb-4">
+                  <div className="text-center">
+                    <span className="block text-white font-semibold">{profileStats.photos}</span>
+                    <span className="text-white/60 text-sm">photos</span>
+                  </div>
+                  <div className="text-center">
+                    <span className="block text-white font-semibold">{profileStats.voices}</span>
+                    <span className="text-white/60 text-sm">voices</span>
+                  </div>
+                  <div className="text-center">
+                    <span className="block text-white font-semibold">{profileStats.thoughts}</span>
+                    <span className="text-white/60 text-sm">thoughts</span>
+                  </div>
+                  <div className="text-center">
+                    <span className="block text-white font-semibold">{profileStats.hobbies}</span>
+                    <span className="text-white/60 text-sm">hobbies</span>
+                  </div>
+                </div>
+
+                {/* Bio */}
+                <div className="text-white">
+                  <p className="font-semibold">{currentUser.fullName || currentUser.username}</p>
+                  <p className="text-white/80 text-sm mt-1">
+                    {currentUser.age && `${currentUser.age} years old • `}
+                    {currentUser.city && currentUser.state && `${currentUser.city}, ${currentUser.state}`}
+                    {currentUser.country && ` • ${currentUser.country}`}
+                  </p>
+                  {currentUser.bio && (
+                    <p className="text-white/80 text-sm mt-1">{currentUser.bio}</p>
+                  )}
+                  <p className="text-blue-400 text-sm mt-1">{currentUser.email}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Tabs */}
+          <div className="bg-white/10 rounded-2xl">
+            <div className="flex border-b border-white/20">
+              <button
+                onClick={() => setActiveTab('photos')}
+                className={`flex-1 py-4 text-center font-medium transition-colors cursor-pointer ${
+                  activeTab === 'photos' 
+                    ? 'text-pink-400 border-b-2 border-pink-400' 
+                    : 'text-white/60 hover:text-white'
+                }`}
+              >
+                <svg className="w-5 h-5 mx-auto mb-1" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
                 </svg>
+                Photos
+              </button>
+              <button
+                onClick={() => setActiveTab('voices')}
+                className={`flex-1 py-4 text-center font-medium transition-colors cursor-pointer ${
+                  activeTab === 'voices' 
+                    ? 'text-pink-400 border-b-2 border-pink-400' 
+                    : 'text-white/60 hover:text-white'
+                }`}
+              >
+                <svg className="w-5 h-5 mx-auto mb-1" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.617.787L4.5 13.5H2a1 1 0 01-1-1v-3a1 1 0 011-1h2.5l3.883-3.787a1 1 0 011.617.787zM12.293 7.293a1 1 0 011.414 0L15 8.586l1.293-1.293a1 1 0 111.414 1.414L16.414 10l1.293 1.293a1 1 0 01-1.414 1.414L15 11.414l-1.293 1.293a1 1 0 01-1.414-1.414L13.586 10l-1.293-1.293a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+                Voices
+              </button>
+              <button
+                onClick={() => setActiveTab('thoughts')}
+                className={`flex-1 py-4 text-center font-medium transition-colors cursor-pointer ${
+                  activeTab === 'thoughts' 
+                    ? 'text-pink-400 border-b-2 border-pink-400' 
+                    : 'text-white/60 hover:text-white'
+                }`}
+              >
+                <svg className="w-5 h-5 mx-auto mb-1" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clipRule="evenodd" />
+                </svg>
+                Thoughts
+              </button>
+              <button
+                onClick={() => setActiveTab('hobbies')}
+                className={`flex-1 py-4 text-center font-medium transition-colors cursor-pointer ${
+                  activeTab === 'hobbies' 
+                    ? 'text-pink-400 border-b-2 border-pink-400' 
+                    : 'text-white/60 hover:text-white'
+                }`}
+              >
+                <svg className="w-5 h-5 mx-auto mb-1" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M12.316 3.051a1 1 0 01.633 1.265l-4 12a1 1 0 11-1.898-.632l4-12a1 1 0 011.265-.633zM5.707 6.293a1 1 0 010 1.414L3.414 10l2.293 2.293a1 1 0 11-1.414 1.414l-3-3a1 1 0 010-1.414l3-3a1 1 0 011.414 0zm8.586 0a1 1 0 011.414 0l3 3a1 1 0 010 1.414l-3 3a1 1 0 11-1.414-1.414L16.586 10l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+                Hobbies
               </button>
             </div>
 
-            {/* Profile Info */}
-            <div className="flex-1">
-              <div className="flex items-center space-x-4 mb-4">
-                <h1 className="text-2xl font-bold text-white">{currentUser.username}</h1>
-                <button 
-                  onClick={() => setShowProfileCompletion(true)}
-                  className="bg-white/20 hover:bg-white/30 text-white px-4 py-1 rounded-lg text-sm font-medium transition-colors cursor-pointer"
-                >
-                  Edit Profile
-                </button>
-                <button className="text-white/80 hover:text-white cursor-pointer">
-                  <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
-                  </svg>
-                </button>
-              </div>
-
-              {/* Stats */}
-              <div className="flex space-x-8 mb-4">
-                <div className="text-center">
-                  <span className="block text-white font-semibold">{profileStats.photos}</span>
-                  <span className="text-white/60 text-sm">photos</span>
-                </div>
-                <div className="text-center">
-                  <span className="block text-white font-semibold">{profileStats.voices}</span>
-                  <span className="text-white/60 text-sm">voices</span>
-                </div>
-                <div className="text-center">
-                  <span className="block text-white font-semibold">{profileStats.thoughts}</span>
-                  <span className="text-white/60 text-sm">thoughts</span>
-                </div>
-                <div className="text-center">
-                  <span className="block text-white font-semibold">{profileStats.hobbies}</span>
-                  <span className="text-white/60 text-sm">hobbies</span>
-                </div>
-              </div>
-
-              {/* Bio */}
-              <div className="text-white">
-                <p className="font-semibold">{currentUser.fullName || currentUser.username}</p>
-                <p className="text-white/80 text-sm mt-1">
-                  {currentUser.age && `${currentUser.age} years old • `}
-                  {currentUser.city && currentUser.state && `${currentUser.city}, ${currentUser.state}`}
-                  {currentUser.country && ` • ${currentUser.country}`}
-                </p>
-                {currentUser.bio && (
-                  <p className="text-white/80 text-sm mt-1">{currentUser.bio}</p>
-                )}
-                <p className="text-blue-400 text-sm mt-1">{currentUser.email}</p>
-              </div>
+            {/* Tab Content */}
+            <div className="p-6">
+              {activeTab === 'photos' && renderPhotosTab()}
+              {activeTab === 'voices' && renderVoicesTab()}
+              {activeTab === 'thoughts' && renderThoughtsTab()}
+              {activeTab === 'hobbies' && renderHobbiesTab()}
             </div>
           </div>
         </div>
 
-        {/* Tabs */}
-        <div className="bg-white/10 rounded-2xl">
-          <div className="flex border-b border-white/20">
-            <button
-              onClick={() => setActiveTab('photos')}
-              className={`flex-1 py-4 text-center font-medium transition-colors cursor-pointer ${
-                activeTab === 'photos' 
-                  ? 'text-pink-400 border-b-2 border-pink-400' 
-                  : 'text-white/60 hover:text-white'
-              }`}
-            >
-              <svg className="w-5 h-5 mx-auto mb-1" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
-              </svg>
-              Photos
-            </button>
-            <button
-              onClick={() => setActiveTab('voices')}
-              className={`flex-1 py-4 text-center font-medium transition-colors cursor-pointer ${
-                activeTab === 'voices' 
-                  ? 'text-pink-400 border-b-2 border-pink-400' 
-                  : 'text-white/60 hover:text-white'
-              }`}
-            >
-              <svg className="w-5 h-5 mx-auto mb-1" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.617.787L4.5 13.5H2a1 1 0 01-1-1v-3a1 1 0 011-1h2.5l3.883-3.787a1 1 0 011.617.787zM12.293 7.293a1 1 0 011.414 0L15 8.586l1.293-1.293a1 1 0 111.414 1.414L16.414 10l1.293 1.293a1 1 0 01-1.414 1.414L15 11.414l-1.293 1.293a1 1 0 01-1.414-1.414L13.586 10l-1.293-1.293a1 1 0 010-1.414z" clipRule="evenodd" />
-              </svg>
-              Voices
-            </button>
-            <button
-              onClick={() => setActiveTab('thoughts')}
-              className={`flex-1 py-4 text-center font-medium transition-colors cursor-pointer ${
-                activeTab === 'thoughts' 
-                  ? 'text-pink-400 border-b-2 border-pink-400' 
-                  : 'text-white/60 hover:text-white'
-              }`}
-            >
-              <svg className="w-5 h-5 mx-auto mb-1" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clipRule="evenodd" />
-              </svg>
-              Thoughts
-            </button>
-            <button
-              onClick={() => setActiveTab('hobbies')}
-              className={`flex-1 py-4 text-center font-medium transition-colors cursor-pointer ${
-                activeTab === 'hobbies' 
-                  ? 'text-pink-400 border-b-2 border-pink-400' 
-                  : 'text-white/60 hover:text-white'
-              }`}
-            >
-              <svg className="w-5 h-5 mx-auto mb-1" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M12.316 3.051a1 1 0 01.633 1.265l-4 12a1 1 0 11-1.898-.632l4-12a1 1 0 011.265-.633zM5.707 6.293a1 1 0 010 1.414L3.414 10l2.293 2.293a1 1 0 11-1.414 1.414l-3-3a1 1 0 010-1.414l3-3a1 1 0 011.414 0zm8.586 0a1 1 0 011.414 0l3 3a1 1 0 010 1.414l-3 3a1 1 0 11-1.414-1.414L16.586 10l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
-              </svg>
-              Hobbies
-            </button>
-          </div>
+        {/* Add Content Modal */}
+        <AddContentModal
+          isOpen={showAddModal}
+          onClose={() => setShowAddModal(false)}
+          contentType={modalContentType}
+          onAdd={handleAddContent}
+        />
 
-          {/* Tab Content */}
-          <div className="p-6">
-            {activeTab === 'photos' && renderPhotosTab()}
-            {activeTab === 'voices' && renderVoicesTab()}
-            {activeTab === 'thoughts' && renderThoughtsTab()}
-            {activeTab === 'hobbies' && renderHobbiesTab()}
-          </div>
-        </div>
+        {/* Delete Account Modal */}
+        <DeleteAccountModal
+          isOpen={showDeleteModal}
+          onClose={() => setShowDeleteModal(false)}
+        />
       </div>
-
-      {/* Add Content Modal */}
-      <AddContentModal
-        isOpen={showAddModal}
-        onClose={() => setShowAddModal(false)}
-        contentType={modalContentType}
-        onAdd={handleAddContent}
-      />
     </div>
   );
 } 

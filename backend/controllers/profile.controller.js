@@ -1,7 +1,8 @@
-import { getUserModel, findUserByEmail } from '../models/user.model.js';
+import { getUserModel, findUserByEmail, findUserByUsername, searchUsersByUsername } from '../models/user.model.js';
 import { errorHandler } from '../utils/error.js';
 import cloudinary from '../utils/cloudinary.js';
 import multer from 'multer';
+import path from 'path';
 
 // Multer setup for memory storage
 const storage = multer.memoryStorage();
@@ -137,6 +138,11 @@ export const addVoice = async (req, res, next) => {
             return next(errorHandler(400, "Title, URL, and duration are required"));
         }
 
+        // Check voice upload limit (max 5 voices excluding intro)
+        if (user.allVoices && user.allVoices.length >= 5) {
+            return next(errorHandler(400, "Maximum 5 voice uploads allowed. Please delete some voices first."));
+        }
+
         const newVoice = {
             title,
             url,
@@ -170,15 +176,25 @@ export const addHobby = async (req, res, next) => {
             return next(errorHandler(404, "User not found"));
         }
 
-        const { name, description } = req.body;
+        const { name, description, url, mediaType } = req.body;
 
         if (!name || !description) {
             return next(errorHandler(400, "Name and description are required"));
         }
 
+        // Check video upload limit (max 5 videos excluding intro)
+        if (mediaType === 'video') {
+            const videoHobbies = user.allHobbies.filter(hobby => hobby.mediaType === 'video');
+            if (videoHobbies.length >= 5) {
+                return next(errorHandler(400, "Maximum 5 video uploads allowed. Please delete some videos first."));
+            }
+        }
+
         const newHobby = {
             name,
-            description
+            description,
+            url: url || '',
+            mediaType: mediaType || ''
         };
 
         const updatedUser = await model.findByIdAndUpdate(
@@ -207,13 +223,14 @@ export const addThought = async (req, res, next) => {
             return next(errorHandler(404, "User not found"));
         }
 
-        const { content } = req.body;
+        const { title, content } = req.body;
 
-        if (!content) {
-            return next(errorHandler(400, "Content is required"));
+        if (!title || !content) {
+            return next(errorHandler(400, "Title and content are required"));
         }
 
         const newThought = {
+            title,
             content,
             likes: 0,
             comments: 0
@@ -285,22 +302,62 @@ export const deleteContent = async (req, res, next) => {
         }
 
         let updateQuery = {};
-        
+        let fileUrl = null;
+        let mediaType = null;
+        // Find the item to get its URL for Cloudinary deletion
         switch (contentType) {
-            case 'voice':
+            case 'voice': {
+                const item = user.allVoices.find(v => v._id.toString() === contentId);
+                if (item && item.url) fileUrl = item.url;
                 updateQuery = { $pull: { allVoices: { _id: contentId } } };
                 break;
-            case 'hobby':
+            }
+            case 'hobby': {
+                const item = user.allHobbies.find(h => h._id.toString() === contentId);
+                if (item && item.url) fileUrl = item.url;
+                if (item && item.mediaType) mediaType = item.mediaType;
                 updateQuery = { $pull: { allHobbies: { _id: contentId } } };
                 break;
-            case 'thought':
-                updateQuery = { $pull: { allThoughts: { _id: contentId } } };
-                break;
-            case 'photo':
+            }
+            case 'photo': {
+                const item = user.allPhotos.find(p => p._id.toString() === contentId);
+                if (item && item.url) fileUrl = item.url;
                 updateQuery = { $pull: { allPhotos: { _id: contentId } } };
                 break;
+            }
+            case 'thought': {
+                updateQuery = { $pull: { allThoughts: { _id: contentId } } };
+                break;
+            }
             default:
                 return next(errorHandler(400, "Invalid content type"));
+        }
+
+        // Delete from Cloudinary if applicable
+        if (fileUrl) {
+            try {
+                // Extract public_id from Cloudinary URL
+                // Example: https://res.cloudinary.com/demo/image/upload/v1234567890/folder/filename.jpg
+                // public_id = folder/filename (without extension)
+                const urlParts = fileUrl.split('/');
+                const uploadIndex = urlParts.findIndex(part => part === 'upload');
+                let publicIdWithExt = urlParts.slice(uploadIndex + 1).join('/');
+                // Remove version if present (e.g., v1234567890)
+                if (publicIdWithExt.startsWith('v') && publicIdWithExt[1] >= '0' && publicIdWithExt[1] <= '9') {
+                    publicIdWithExt = publicIdWithExt.split('/').slice(1).join('/');
+                }
+                // Remove extension
+                const publicId = publicIdWithExt.replace(path.extname(publicIdWithExt), '');
+                // Determine resource_type
+                let resourceType = 'image';
+                if (contentType === 'voice' || (contentType === 'hobby' && mediaType === 'video')) {
+                    resourceType = 'video';
+                }
+                await cloudinary.uploader.destroy(publicId, { resource_type: resourceType });
+            } catch (cloudErr) {
+                // Log but don't block deletion if Cloudinary fails
+                console.error('Cloudinary deletion error:', cloudErr);
+            }
         }
 
         const updatedUser = await model.findByIdAndUpdate(
@@ -377,6 +434,62 @@ export const uploadHobbyMedia = [
       } else {
         return next(errorHandler(400, 'Only image or video allowed for hobby media'));
       }
+    } catch (error) {
+      next(error);
+    }
+  }
+];
+
+// Public: Get user profile by username
+export const getUserProfileByUsername = async (req, res, next) => {
+    try {
+        const { username } = req.params;
+        const { user } = await findUserByUsername(username);
+        if (!user) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+        // Optionally, exclude sensitive fields
+        const { password, email, ...publicProfile } = user.toObject();
+        res.status(200).json({ success: true, user: publicProfile });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// Public: Search users by username (autocomplete)
+export const searchUsernames = async (req, res, next) => {
+    try {
+        const { q } = req.query;
+        if (!q || q.length < 1) return res.json({ users: [] });
+        const users = await searchUsersByUsername(q, 10);
+        // Return only username, fullName, and profilePicture
+        const suggestions = users.map(u => ({
+            username: u.username,
+            fullName: u.fullName,
+            profilePicture: u.profilePicture
+        }));
+        res.json({ users: suggestions });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// Upload and update profile picture (max 2MB)
+export const uploadProfilePicture = [
+  photoUpload.single('photo'),
+  async (req, res, next) => {
+    try {
+      if (!req.file) return next(errorHandler(400, 'No file uploaded'));
+      if (!req.file.mimetype.startsWith('image/')) return next(errorHandler(400, 'Only image files are allowed'));
+      if (req.file.size > 2 * 1024 * 1024) return next(errorHandler(400, 'Profile picture must be less than 2MB'));
+      const result = await uploadToCloudinary(req.file.buffer, 'DreamSoul/profile_pictures', 'image');
+      // Update user profilePicture
+      const { email } = req.user;
+      const { user, model } = await findUserByEmail(email);
+      if (!user) return next(errorHandler(404, 'User not found'));
+      user.profilePicture = result.secure_url;
+      await user.save();
+      res.status(200).json({ url: result.secure_url });
     } catch (error) {
       next(error);
     }
