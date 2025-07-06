@@ -279,31 +279,33 @@ export default function Header() {
           {isMenuOpen && (
             <div className="md:hidden glass-effect rounded-lg p-4 mb-4">
               <div className="flex flex-col space-y-4">
-                <a href="#" className="text-white hover:text-pink-300 transition-colors flex items-center space-x-2 cursor-pointer">
+                <Link to="/" onClick={() => setIsMenuOpen(false)} className="text-white hover:text-pink-300 transition-colors flex items-center space-x-2 cursor-pointer">
                   <Home size={16} />
                   <span>Home</span>
-                </a>
-                <a href="#" className="text-white hover:text-pink-300 transition-colors flex items-center space-x-2 cursor-pointer">
+                </Link>
+                <Link to="#" onClick={() => setIsMenuOpen(false)} className="text-white hover:text-pink-300 transition-colors flex items-center space-x-2 cursor-pointer">
                   <Users size={16} />
                   <span>Match</span>
-                </a>
-                <a href="#" className="text-white hover:text-pink-300 transition-colors flex items-center space-x-2 cursor-pointer">
+                </Link>
+                <Link to="#" onClick={() => setIsMenuOpen(false)} className="text-white hover:text-pink-300 transition-colors flex items-center space-x-2 cursor-pointer">
                   <MessageCircle size={16} />
                   <span>Chats</span>
-                </a>
-                <a href="#" className="text-white hover:text-pink-300 transition-colors flex items-center space-x-2 cursor-pointer">
+                </Link>
+                <Link to="#" onClick={() => setIsMenuOpen(false)} className="text-white hover:text-pink-300 transition-colors flex items-center space-x-2 cursor-pointer">
                   <Bell size={16} />
                   <span>Notifications</span>
-                </a>
-                <a href="#" className="text-white hover:text-pink-300 transition-colors flex items-center space-x-2 cursor-pointer">
+                </Link>
+                <Link to="#" onClick={() => setIsMenuOpen(false)} className="text-white hover:text-pink-300 transition-colors flex items-center space-x-2 cursor-pointer">
                   <DollarSign size={16} />
                   <span>Pricing</span>
-                </a>
+                </Link>
                 <div className="pt-4 border-t border-white/20">
                   {!currentUser ? (
-                    <button className="glass-effect text-white px-4 py-2 rounded-full w-full cursor-pointer">
-                      Sign In
-                    </button>
+                    <Link to="/sign-in">
+                      <button className="glass-effect text-white px-4 py-2 rounded-full w-full cursor-pointer" onClick={() => setIsMenuOpen(false)}>
+                        Sign In
+                      </button>
+                    </Link>
                   ) : (
                     <div className="relative">
                       <button
