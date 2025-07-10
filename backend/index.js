@@ -6,7 +6,6 @@ import cors from 'cors';
 import authRoutes from './routes/auth.route.js';
 import profileRoutes from './routes/profile.route.js';
 import path from 'path';
-import bodyParser from 'body-parser';
 
 dotenv.config();
 
@@ -17,10 +16,9 @@ const app = express();
 // Configure CORS with specific options
 app.use(cors());
 
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
-
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
 app.use(cookieParser());
 
 // MongoDB connection
